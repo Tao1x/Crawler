@@ -11,6 +11,7 @@ import org.slf4j.LoggerFactory;
 import java.io.*;
 import java.util.*;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.stream.Collectors;
 
 /**
  * @Description : 爬虫
@@ -38,16 +39,26 @@ public class Crawler {
     public static void main(String[] args) {
         Crawler crawler = new Crawler();
         String homePage = HttpClient.getHtmlByHttpClient(CrawlerConstants.HOME_PAGE);
-        List<VideoMetaData> videoMetaDataList = crawler.getVideoMetaData(homePage);
-
-        videoMetaDataList.sort(Comparator.comparingInt(VideoMetaData::getDuration));
-        for (VideoMetaData metaData : videoMetaDataList) {
+        List<VideoMetaData> homePageMetaDataList = crawler.getVideoMetaData(homePage);
+        // 过滤掉已下载
+        Map<String, String> downloadedMap = crawler.readDownloaded();
+        List<VideoMetaData> filteredMetaDataList =
+            homePageMetaDataList.stream().filter(metaData -> {
+                if (downloadedMap.keySet().contains(metaData.getId())) {
+                    logger.info("filter downloaded :{}", metaData);
+                    return false;
+                } else {
+                    return true;
+                }
+            }).collect(Collectors.toList());
+        filteredMetaDataList.sort(Comparator.comparingInt(VideoMetaData::getDuration));
+        filteredMetaDataList.forEach(metaData -> logger.info(metaData.toString()));
+        for (VideoMetaData metaData : filteredMetaDataList) {
             String singlePageHtml = HttpClient.getHtmlByHttpClient(metaData.getPageUrl());
             String videoUrl = crawler.getVideoUrl(singlePageHtml);
             metaData.setSrcUrl(videoUrl);
         }
-        videoMetaDataList.forEach(metaData -> logger.info(metaData.toString()));
-        for (VideoMetaData metaData : videoMetaDataList) {
+        for (VideoMetaData metaData : filteredMetaDataList) {
             if (null == metaData.getSrcUrl() || metaData.getSrcUrl().isEmpty()) {
                 logger.warn(metaData.toString() + "have no url");
                 continue;
@@ -68,7 +79,7 @@ public class Crawler {
     public void record(VideoMetaData metaData) {
         File recordFile = new File(this.getClass().getResource("downloaded").getPath());
         try (BufferedWriter bw = new BufferedWriter(new FileWriter(recordFile, true))) {
-            bw.write(metaData + "\t\n");
+            bw.write(metaData + "\n");
             bw.flush();
         } catch (IOException e) {
             logger.error(e.getMessage(), e);
@@ -82,27 +93,31 @@ public class Crawler {
      * @return
      */
     public boolean isDownloaded(VideoMetaData metaData) {
+        Map<String, String> map = readDownloaded();
+        if (map.keySet().contains(metaData.getId())) {
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * 读取已下载的文件
+     *
+     * @return
+     */
+    private Map<String, String> readDownloaded() {
         Map<String, String> map = new HashMap<>();
-        //URL downloadedUrl = getClass().getResource("downloaded");
         File recordFile = new File(getClass().getResource("downloaded").getPath());
         try (BufferedReader br = new BufferedReader(new FileReader(recordFile))) {
             br.lines().forEach(info -> {
                 String id = "";
-                if (info.split("||").length == 2) {
-                    id = info.split("||")[0];
-                } else {
-                    RuntimeException exception = new RuntimeException("parse " + info + " failed");
-                    logger.error(exception.getMessage(), exception);
-                }
+                id = info.substring(0, info.indexOf("|"));
                 map.putIfAbsent(id, info);
             });
         } catch (IOException e) {
             logger.error(e.getMessage(), e);
         }
-        if (map.keySet().contains(metaData.getId())) {
-            return true;
-        }
-        return false;
+        return map;
     }
 
 

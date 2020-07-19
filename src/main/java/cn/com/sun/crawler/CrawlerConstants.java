@@ -17,7 +17,7 @@ public class CrawlerConstants {
 
     public static final int READ_TIMEOUT = 5000;
 
-    public static final int READ_FILE_TIMEOUT = 30000;
+    public static final int READ_FILE_TIMEOUT = 60000;
 
     public static final String FILE_SAVE_PATH = "F://Download//crawler//";
 

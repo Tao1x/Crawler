@@ -104,8 +104,23 @@ public class HttpClient {
      * @return
      */
     public static boolean downloadToFs(VideoMetaData metaData) {
+        downloadFileFromUrl(metaData, ".jpg");
+        boolean mp4Success = downloadFileFromUrl(metaData, ".mp4");
+        if (!mp4Success) {
+            return false;
+        }
+        return true;
+    }
+
+    private static boolean downloadFileFromUrl(VideoMetaData metaData, String type) {
+        String url = "";
+        if (".mp4".equals(type)) {
+            url = metaData.getSrcUrl();
+        } else if (".jpg".equals(type)) {
+            url = metaData.getCoverUrl();
+        }
         // 请求
-        HttpGet request = createHttpGetRequest(metaData.getSrcUrl());
+        HttpGet request = createHttpGetRequest(url);
         request.setConfig(RequestConfig.copy(requestConfig).setSocketTimeout(CrawlerConstants.READ_FILE_TIMEOUT).build());
         // 创建对应日期的文件夹
         String date = LocalDate.now().format(DateTimeFormatter.ISO_DATE);
@@ -114,20 +129,20 @@ public class HttpClient {
             dir.mkdir();
         }
         // 下载
-        File file = new File(dir.getPath() + File.separator + metaData.getTitle() + ".mp4");
+        File file = new File(dir.getPath() + File.separator + metaData.getTitle() + type);
         try (CloseableHttpResponse response = httpClient.execute(request); FileOutputStream out = new FileOutputStream(file); InputStream in =
             response.getEntity().getContent()) {
-            float fileSize = Integer.parseInt(response.getFirstHeader("Content-Length").getValue()) / (1024 * 1024);
-            logger.info("file size:{},title:{}", fileSize + "M", metaData.getTitle());
-            logger.info("download start: {}", metaData.getSrcUrl());
+            int bytes = Integer.parseInt(response.getFirstHeader("Content-Length").getValue());
+            float fileSize = ((float) bytes) / (1024 * 1024);
+            logger.info("download file start: name:{},size:{} {},url:{}", metaData.getTitle() + type, bytes + "byte", fileSize + "m", url);
             copy(in, out);
         } catch (IOException e) {
-            // 下载失败将文件删除
-            logger.error("download failed: {}", e.getMessage());
-            file.delete();
-            return false;
+            logger.error("download file end: failed: {}", e.getMessage());
+            if (".mp4".equals(type)) {
+                return false;
+            }
         }
-        logger.info("download success");
+        logger.info("download file end: success");
         return true;
     }
 
