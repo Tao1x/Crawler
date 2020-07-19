@@ -8,11 +8,8 @@ import org.jsoup.select.Elements;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Queue;
+import java.io.*;
+import java.util.*;
 import java.util.concurrent.LinkedBlockingQueue;
 
 /**
@@ -40,22 +37,72 @@ public class Crawler {
 
     public static void main(String[] args) {
         Crawler crawler = new Crawler();
-        String homePage = HttpClient.getHtmlByHttpClient("http://www.91porn.com/index.php");
+        String homePage = HttpClient.getHtmlByHttpClient(CrawlerConstants.HOME_PAGE);
         List<VideoMetaData> videoMetaDataList = crawler.getVideoMetaData(homePage);
+
         videoMetaDataList.sort(Comparator.comparingInt(VideoMetaData::getDuration));
-        logger.info(videoMetaDataList.toString());
         for (VideoMetaData metaData : videoMetaDataList) {
             String singlePageHtml = HttpClient.getHtmlByHttpClient(metaData.getPageUrl());
             String videoUrl = crawler.getVideoUrl(singlePageHtml);
             metaData.setSrcUrl(videoUrl);
         }
+        videoMetaDataList.forEach(metaData -> logger.info(metaData.toString()));
         for (VideoMetaData metaData : videoMetaDataList) {
-            String filePath = CrawlerConstants.FILE_SAVE_PATH + metaData.getTitle() + ".mp4";
-            if (null != metaData.getSrcUrl() && !metaData.getSrcUrl().isEmpty()) {
-                logger.info("file title:{}", metaData.getTitle());
-                HttpClient.downloadToFs(metaData.getSrcUrl(), filePath);
+            if (null == metaData.getSrcUrl() || metaData.getSrcUrl().isEmpty()) {
+                logger.warn(metaData.toString() + "have no url");
+                continue;
+            }
+            if (!crawler.isDownloaded(metaData)) {
+                if (HttpClient.downloadToFs(metaData)) {
+                    crawler.record(metaData);
+                }
             }
         }
+    }
+
+    /**
+     * 记录下载成功的文件 未考虑并发执行的同步问题
+     *
+     * @param metaData
+     */
+    public void record(VideoMetaData metaData) {
+        File recordFile = new File(this.getClass().getResource("downloaded").getPath());
+        try (BufferedWriter bw = new BufferedWriter(new FileWriter(recordFile, true))) {
+            bw.write(metaData + "\t\n");
+            bw.flush();
+        } catch (IOException e) {
+            logger.error(e.getMessage(), e);
+        }
+    }
+
+    /**
+     * 是否已下载 考虑并发执行的同步问题
+     *
+     * @param metaData
+     * @return
+     */
+    public boolean isDownloaded(VideoMetaData metaData) {
+        Map<String, String> map = new HashMap<>();
+        //URL downloadedUrl = getClass().getResource("downloaded");
+        File recordFile = new File(getClass().getResource("downloaded").getPath());
+        try (BufferedReader br = new BufferedReader(new FileReader(recordFile))) {
+            br.lines().forEach(info -> {
+                String id = "";
+                if (info.split("||").length == 2) {
+                    id = info.split("||")[0];
+                } else {
+                    RuntimeException exception = new RuntimeException("parse " + info + " failed");
+                    logger.error(exception.getMessage(), exception);
+                }
+                map.putIfAbsent(id, info);
+            });
+        } catch (IOException e) {
+            logger.error(e.getMessage(), e);
+        }
+        if (map.keySet().contains(metaData.getId())) {
+            return true;
+        }
+        return false;
     }
 
 

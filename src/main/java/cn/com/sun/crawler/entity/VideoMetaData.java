@@ -99,16 +99,6 @@ public class VideoMetaData {
 
     @Override
     public String toString() {
-        return "VideoMetaData{" +
-            "id='" + id + '\'' +
-            ", srcUrl='" + srcUrl + '\'' +
-            ", coverUrl='" + coverUrl + '\'' +
-            ", title='" + title + '\'' +
-            ", duration=" + duration +
-            ", author='" + author + '\'' +
-            ", storeNum=" + storeNum +
-            ", pageUrl='" + pageUrl + '\'' +
-            ", watchNum=" + watchNum +
-            '}';
+        return id + "||" + title;
     }
 }

@@ -1,5 +1,6 @@
 package cn.com.sun.crawler;
 
+import cn.com.sun.crawler.entity.VideoMetaData;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
 import org.apache.http.client.config.RequestConfig;
@@ -17,6 +18,8 @@ import java.net.HttpURLConnection;
 import java.net.InetSocketAddress;
 import java.net.Proxy;
 import java.net.URL;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.Random;
 import java.util.zip.GZIPInputStream;
 
@@ -97,27 +100,31 @@ public class HttpClient {
     /**
      * 通过http方式将远程资源下载到本地文件
      *
-     * @param resourceUrl
-     * @param filePath
+     * @param metaData
      * @return
      */
-    public static boolean downloadToFs(String resourceUrl, String filePath) {
-        HttpGet request = createHttpGetRequest(resourceUrl);
+    public static boolean downloadToFs(VideoMetaData metaData) {
+        // 请求
+        HttpGet request = createHttpGetRequest(metaData.getSrcUrl());
         request.setConfig(RequestConfig.copy(requestConfig).setSocketTimeout(CrawlerConstants.READ_FILE_TIMEOUT).build());
-        File file = new File(filePath);
+        // 创建对应日期的文件夹
+        String date = LocalDate.now().format(DateTimeFormatter.ISO_DATE);
+        File dir = new File(CrawlerConstants.FILE_SAVE_PATH + date);
+        if (!dir.exists()) {
+            dir.mkdir();
+        }
+        // 下载
+        File file = new File(dir.getPath() + File.separator + metaData.getTitle() + ".mp4");
         try (CloseableHttpResponse response = httpClient.execute(request); FileOutputStream out = new FileOutputStream(file); InputStream in =
             response.getEntity().getContent()) {
-            //logger.info(response.getFirstHeader("Content-Length").getValue());
             float fileSize = Integer.parseInt(response.getFirstHeader("Content-Length").getValue()) / (1024 * 1024);
-            logger.info("file size:{}", fileSize + "M");
-            if (file.exists()) {
-                logger.info("file:{} exist", filePath);
-                return false;
-            }
-            logger.info("download start: {}", resourceUrl);
+            logger.info("file size:{},title:{}", fileSize + "M", metaData.getTitle());
+            logger.info("download start: {}", metaData.getSrcUrl());
             copy(in, out);
         } catch (IOException e) {
+            // 下载失败将文件删除
             logger.error("download failed: {}", e.getMessage());
+            file.delete();
             return false;
         }
         logger.info("download success");
@@ -179,10 +186,12 @@ public class HttpClient {
 
     private static String randomIp() {
         Random random = new Random();
-        StringBuilder ip = new StringBuilder("");
+        StringBuilder ipBuilder = new StringBuilder("");
         for (int i = 0; i < 4; i++) {
-            ip.append(random.nextInt(255)).append(".");
+            ipBuilder.append(random.nextInt(255)).append(".");
         }
-        return ip.deleteCharAt(ip.length() - 1).toString();
+        String ip = ipBuilder.deleteCharAt(ipBuilder.length() - 1).toString();
+        logger.info("request ip:{}", ip);
+        return ip;
     }
 }
