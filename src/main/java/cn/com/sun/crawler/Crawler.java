@@ -38,7 +38,7 @@ public class Crawler {
 
     public static void main(String[] args) {
         Crawler crawler = new Crawler();
-        String homePage = HttpClient.getHtmlByHttpClient(CrawlerConstants.HOME_PAGE);
+        String homePage = HttpClient.getHtmlByHttpClient(Config.HOME_PAGE);
         List<VideoMetaData> homePageMetaDataList = crawler.getVideoMetaData(homePage);
         // 过滤掉已下载
         Map<String, String> downloadedMap = crawler.readDownloaded();

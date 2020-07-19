@@ -35,10 +35,10 @@ public class TestDownload {
     @Test
     public void record() {
         Crawler crawler = new Crawler();
-        String homePage = HttpClient.getHtmlByHttpClient(CrawlerConstants.HOME_PAGE);
+        String homePage = HttpClient.getHtmlByHttpClient(Config.HOME_PAGE);
         List<VideoMetaData> videoMetaDataList = crawler.getVideoMetaData(homePage);
         for (VideoMetaData metaData : videoMetaDataList) {
-            String filePath = CrawlerConstants.FILE_SAVE_PATH + metaData.getTitle() + ".mp4";
+            String filePath = Config.FILE_SAVE_PATH + metaData.getTitle() + ".mp4";
             logger.info(filePath);
             if (new File(filePath).exists()) {
                 crawler.record(metaData);

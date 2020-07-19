@@ -5,7 +5,7 @@ package cn.com.sun.crawler;
  * @Author :sunchao
  * @Date: 2020-07-18 00:43
  */
-public class CrawlerConstants {
+public class Config {
 
     public static final String HTTP_PROXY_HOSTNAME = "localhost";
 

@@ -40,9 +40,9 @@ public class HttpClient {
         PoolingHttpClientConnectionManager conManager = new PoolingHttpClientConnectionManager();
         httpClient = HttpClients.custom().setConnectionManager(conManager).build();
         //发送Get请求
-        HttpHost proxy = new HttpHost(CrawlerConstants.HTTP_PROXY_HOSTNAME, CrawlerConstants.HTTP_PROXY_PORT);
-        requestConfig = RequestConfig.custom().setProxy(proxy).setConnectTimeout(CrawlerConstants.CONNECT_TIMEOUT)
-            .setSocketTimeout(CrawlerConstants.READ_TIMEOUT).build();
+        HttpHost proxy = new HttpHost(Config.HTTP_PROXY_HOSTNAME, Config.HTTP_PROXY_PORT);
+        requestConfig = RequestConfig.custom().setProxy(proxy).setConnectTimeout(Config.CONNECT_TIMEOUT)
+            .setSocketTimeout(Config.READ_TIMEOUT).build();
     }
 
     /**
@@ -121,10 +121,10 @@ public class HttpClient {
         }
         // 请求
         HttpGet request = createHttpGetRequest(url);
-        request.setConfig(RequestConfig.copy(requestConfig).setSocketTimeout(CrawlerConstants.READ_FILE_TIMEOUT).build());
+        request.setConfig(RequestConfig.copy(requestConfig).setSocketTimeout(Config.READ_FILE_TIMEOUT).build());
         // 创建对应日期的文件夹
         String date = LocalDate.now().format(DateTimeFormatter.ISO_DATE);
-        File dir = new File(CrawlerConstants.FILE_SAVE_PATH + date);
+        File dir = new File(Config.FILE_SAVE_PATH + date);
         if (!dir.exists()) {
             dir.mkdir();
         }
@@ -163,7 +163,7 @@ public class HttpClient {
         HttpURLConnection con = null;
         URL url;
         try {
-            Proxy proxy = new Proxy(Proxy.Type.HTTP, new InetSocketAddress(CrawlerConstants.HTTP_PROXY_HOSTNAME, CrawlerConstants.HTTP_PROXY_PORT));
+            Proxy proxy = new Proxy(Proxy.Type.HTTP, new InetSocketAddress(Config.HTTP_PROXY_HOSTNAME, Config.HTTP_PROXY_PORT));
             url = new URL(urlStr);
             con = (HttpURLConnection) url.openConnection(proxy);
             System.out.println(url.getHost());
@@ -181,8 +181,8 @@ public class HttpClient {
             // 模拟浏览器访问
             con.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/84.0.4147" +
                 ".89 Safari/537.36");
-            con.setConnectTimeout(CrawlerConstants.CONNECT_TIMEOUT);
-            con.setReadTimeout(CrawlerConstants.READ_TIMEOUT);
+            con.setConnectTimeout(Config.CONNECT_TIMEOUT);
+            con.setReadTimeout(Config.READ_TIMEOUT);
             con.connect();
         } catch (IOException e) {
             e.printStackTrace();
