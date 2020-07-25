@@ -21,6 +21,8 @@ import java.net.URL;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.Random;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.zip.GZIPInputStream;
 
 /**
@@ -103,24 +105,9 @@ public class HttpClient {
      * @param metaData
      * @return
      */
-    public static boolean downloadToFs(VideoMetaData metaData) {
-        downloadFileFromUrl(metaData, ".jpg");
-        boolean mp4Success = downloadFileFromUrl(metaData, ".mp4");
-        if (!mp4Success) {
-            return false;
-        }
-        return true;
-    }
-
-    private static boolean downloadFileFromUrl(VideoMetaData metaData, String type) {
-        String url = "";
-        if (".mp4".equals(type)) {
-            url = metaData.getSrcUrl();
-        } else if (".jpg".equals(type)) {
-            url = metaData.getCoverUrl();
-        }
+    public static boolean downloadVideoToFs(VideoMetaData metaData) {
         // 请求
-        HttpGet request = createHttpGetRequest(url);
+        HttpGet request = createHttpGetRequest(metaData.getSrcUrl());
         request.setConfig(RequestConfig.copy(requestConfig).setSocketTimeout(Config.READ_FILE_TIMEOUT).build());
         // 创建对应日期的文件夹
         String date = LocalDate.now().format(DateTimeFormatter.ISO_DATE);
@@ -129,20 +116,21 @@ public class HttpClient {
             dir.mkdir();
         }
         // 下载
-        File file = new File(dir.getPath() + File.separator + metaData.getTitle() + type);
+        String fileName = filterBannedChar(metaData.getTitle());
+        String filePath = dir.getPath() + File.separator + fileName + ".mp4";
+        File file = new File(filePath);
         try (CloseableHttpResponse response = httpClient.execute(request); FileOutputStream out = new FileOutputStream(file); InputStream in =
             response.getEntity().getContent()) {
             int bytes = Integer.parseInt(response.getFirstHeader("Content-Length").getValue());
             float fileSize = ((float) bytes) / (1024 * 1024);
-            logger.info("download file start: name:{},size:{} {},url:{}", metaData.getTitle() + type, bytes + "byte", fileSize + "m", url);
+            logger.info("download file start: name:{},size:{} {},url:{}", fileName, bytes + "byte", fileSize + "m", metaData.getSrcUrl());
             copy(in, out);
         } catch (IOException e) {
-            logger.error("download file end: failed: {}", e.getMessage());
-            if (".mp4".equals(type)) {
-                return false;
-            }
+            //下载失败之后忽略异常继续执行
+            logger.error("download file failed: {}", e.getMessage());
+            return false;
         }
-        logger.info("download file end: success");
+        logger.info("download file success");
         return true;
     }
 
@@ -208,5 +196,12 @@ public class HttpClient {
         String ip = ipBuilder.deleteCharAt(ipBuilder.length() - 1).toString();
         logger.info("request ip:{}", ip);
         return ip;
+    }
+
+    private static String filterBannedChar(String string) {
+        String regEx = "[<>/\\|\"*?]";
+        Pattern p = Pattern.compile(regEx);
+        Matcher m = p.matcher(string);
+        return m.replaceAll("").trim();
     }
 }
