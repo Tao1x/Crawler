@@ -1,7 +1,11 @@
 package cn.com.sun.crawler;
 
 import cn.com.sun.crawler.entity.VideoMetaData;
-import org.junit.Test;
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -24,12 +28,23 @@ public class TestDownload {
         crawler.isDownloaded(null);
     }
 
-    @Test
-    public void download() {
-        VideoMetaData videoMetaData = new VideoMetaData();
-        videoMetaData.setSrcUrl("http://198.255.82.92//mp43/383619.mp4?st=Jk-m3BYdUA4r5Z1xyi8KvQ&e=1595199101");
-        videoMetaData.setTitle("hahahaha");
-        HttpClient.downloadToFs(videoMetaData);
+    @ParameterizedTest()
+    @ValueSource(strings = {"http://www.91porn.com/view_video.php?viewkey=205a6cac8c4d42e50362", "http://www.91porn.com/view_video" +
+        ".php?viewkey=249b71f5532395630d29"})
+    public void download(String url) {
+        Crawler crawler = new Crawler();
+        VideoMetaData metaData = new VideoMetaData();
+        metaData.setPageUrl(url);
+        metaData.setTitle(getVideoTitle(url));
+        //metaData.setPageUrl(url);
+        String singleVideoPage = HttpClient.getHtmlByHttpClient(url);
+        String srcUrl = crawler.getVideoUrl(singleVideoPage);
+        metaData.setSrcUrl(srcUrl);
+        String id = "playvthumb_" + srcUrl.substring(srcUrl.indexOf(".mp4") - 6, srcUrl.indexOf(".mp4"));
+        metaData.setId(id);
+        if (!crawler.isDownloaded(metaData)) {
+            if (HttpClient.downloadVideoToFs(metaData)) crawler.record(metaData);
+        }
     }
 
     @Test
@@ -45,5 +60,13 @@ public class TestDownload {
             }
         }
     }
+
+    private String getVideoTitle(String url) {
+        String html = HttpClient.getHtmlByHttpClient(url);
+        Document document = Jsoup.parse(html);
+        String title = document.selectFirst("#videodetails").selectFirst(".login_register_header").text();
+        return title;
+    }
+
 }
 
