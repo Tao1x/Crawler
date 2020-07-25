@@ -38,37 +38,47 @@ public class Crawler {
 
     public static void main(String[] args) {
         Crawler crawler = new Crawler();
-        String homePage = HttpClient.getHtmlByHttpClient(Config.HOME_PAGE);
-        List<VideoMetaData> homePageMetaDataList = crawler.getVideoMetaData(homePage);
-        // 过滤掉已下载
-        Map<String, String> downloadedMap = crawler.readDownloaded();
-        List<VideoMetaData> filteredMetaDataList =
-            homePageMetaDataList.stream().filter(metaData -> {
-                if (downloadedMap.keySet().contains(metaData.getId())) {
-                    logger.info("filter downloaded :{}", metaData);
-                    return false;
-                } else {
-                    return true;
+        // 根据多个指定地址循环获取最新视频
+        for (String pageUrl : Config.PAGES) {
+            logger.info("crawler page :{} start", pageUrl);
+            String pageHtml = HttpClient.getHtmlByHttpClient(pageUrl);
+            List<VideoMetaData> videoMetaDataList = crawler.getVideoMetaData(pageHtml);
+            // 过滤掉已下载的得到未下载的
+            Map<String, String> downloadedMap = crawler.readDownloaded();
+            List<VideoMetaData> unDownloadList =
+                videoMetaDataList.stream().filter(metaData -> {
+                    if (downloadedMap.keySet().contains(metaData.getId())) {
+                        logger.info("filter downloaded video:{}", metaData.getTitle());
+                        return false;
+                    } else {
+                        return true;
+                    }
+                }).collect(Collectors.toList());
+            // 根据视频时长从小到大排序
+            unDownloadList.sort(Comparator.comparingInt(VideoMetaData::getDuration));
+            //logger.info("video ready");
+            unDownloadList.forEach(metaData -> logger.info(metaData.toString()));
+            for (VideoMetaData metaData : unDownloadList) {
+                String singlePageHtml = HttpClient.getHtmlByHttpClient(metaData.getPageUrl());
+                String videoUrl = crawler.getVideoUrl(singlePageHtml);
+                if ("".equals(videoUrl)) {
+                    logger.warn("get {} url by share link failed", metaData.toString());
+                    continue;
                 }
-            }).collect(Collectors.toList());
-        filteredMetaDataList.sort(Comparator.comparingInt(VideoMetaData::getDuration));
-        filteredMetaDataList.forEach(metaData -> logger.info(metaData.toString()));
-        for (VideoMetaData metaData : filteredMetaDataList) {
-            String singlePageHtml = HttpClient.getHtmlByHttpClient(metaData.getPageUrl());
-            String videoUrl = crawler.getVideoUrl(singlePageHtml);
-            metaData.setSrcUrl(videoUrl);
-        }
-        for (VideoMetaData metaData : filteredMetaDataList) {
-            if (null == metaData.getSrcUrl() || metaData.getSrcUrl().isEmpty()) {
-                logger.warn(metaData.toString() + "have no url");
-                continue;
+                metaData.setSrcUrl(videoUrl);
             }
-            if (!crawler.isDownloaded(metaData)) {
-                if (HttpClient.downloadToFs(metaData)) {
-                    crawler.record(metaData);
+            List<VideoMetaData> finalList = unDownloadList.stream().filter(metaData -> metaData.getSrcUrl() != null &&
+                !metaData.getSrcUrl().isEmpty()).collect(Collectors.toList());
+            for (VideoMetaData metaData : finalList) {
+                if (!crawler.isDownloaded(metaData)) {
+                    if (HttpClient.downloadVideoToFs(metaData)) {
+                        crawler.record(metaData);
+                    }
                 }
             }
+            logger.info("page :{} end", pageUrl);
         }
+
     }
 
     /**
@@ -81,6 +91,7 @@ public class Crawler {
         try (BufferedWriter bw = new BufferedWriter(new FileWriter(recordFile, true))) {
             bw.write(metaData + "\n");
             bw.flush();
+            logger.info("record downloaded file:{}", metaData.getTitle() + ".mp4");
         } catch (IOException e) {
             logger.error(e.getMessage(), e);
         }
@@ -121,9 +132,15 @@ public class Crawler {
     }
 
 
+    /**
+     * 爬取页面中所有视频信息
+     *
+     * @param html
+     * @return
+     */
     public List<VideoMetaData> getVideoMetaData(String html) {
         Document document = Jsoup.parse(html);
-        Elements elements = document.select(".well");
+        Elements elements = document.select(".well.well-sm");
         List<VideoMetaData> metaDataList = new ArrayList<>();
         for (Element content : elements) {
             VideoMetaData metaData = new VideoMetaData();
@@ -166,12 +183,13 @@ public class Crawler {
         // 分享链接里面取
         if ("".equals(videoUrl)) {
             Element shareLink = document.selectFirst("#linkForm2 #fm-video_link");
-            String shareHtml = HttpClient.getHtmlByHttpClient(shareLink.text());
-            Element shareDocument = Jsoup.parse(shareHtml);
-            videoUrl = shareDocument.selectFirst("source").attr("src");
-            logger.info("get video url by share link：{}", videoUrl);
+            if (shareLink != null) {
+                String shareHtml = HttpClient.getHtmlByHttpClient(shareLink.text());
+                Element shareDocument = Jsoup.parse(shareHtml);
+                videoUrl = shareDocument.selectFirst("source").attr("src");
+                logger.info("get video url by share link：{}", videoUrl);
+            }
         }
         return videoUrl;
     }
-
 }
