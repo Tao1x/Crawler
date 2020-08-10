@@ -18,7 +18,9 @@ import java.net.HttpURLConnection;
 import java.net.InetSocketAddress;
 import java.net.Proxy;
 import java.net.URL;
+import java.time.Duration;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Random;
 import java.util.regex.Matcher;
@@ -43,8 +45,9 @@ public class HttpClient {
         httpClient = HttpClients.custom().setConnectionManager(conManager).build();
         //发送Get请求
         HttpHost proxy = new HttpHost(Config.HTTP_PROXY_HOSTNAME, Config.HTTP_PROXY_PORT);
-        requestConfig = RequestConfig.custom().setProxy(proxy).setConnectTimeout(Config.CONNECT_TIMEOUT)
-            .setSocketTimeout(Config.READ_TIMEOUT).build();
+        requestConfig =
+            RequestConfig.custom().setProxy(proxy).setConnectTimeout(Config.CONNECT_TIMEOUT)
+                .setSocketTimeout(Config.READ_TIMEOUT).build();
     }
 
     /**
@@ -119,18 +122,25 @@ public class HttpClient {
         String fileName = filterBannedChar(metaData.getTitle());
         String filePath = dir.getPath() + File.separator + fileName + ".mp4";
         File file = new File(filePath);
-        try (CloseableHttpResponse response = httpClient.execute(request); FileOutputStream out = new FileOutputStream(file); InputStream in =
-            response.getEntity().getContent()) {
+        LocalTime startTime;
+        try (CloseableHttpResponse response = httpClient.execute(request); FileOutputStream out =
+            new FileOutputStream(file); InputStream in =
+                 response.getEntity().getContent()) {
             int bytes = Integer.parseInt(response.getFirstHeader("Content-Length").getValue());
             float fileSize = ((float) bytes) / (1024 * 1024);
-            logger.info("download file start: name:{},size:{} {},url:{}", fileName, bytes + "byte", fileSize + "m", metaData.getSrcUrl());
+            logger.info("download file start: name:{},size:{} {},url:{}", fileName, bytes + "byte"
+                , fileSize + "m", metaData.getSrcUrl());
+            startTime = LocalTime.now();
             copy(in, out);
         } catch (IOException e) {
             //下载失败之后忽略异常继续执行
-            logger.error("download file failed: {}", e.getMessage());
+            logger.error("download file failed: {}，name:{}", e.getMessage(), fileName);
             return false;
         }
-        logger.info("download file success");
+        LocalTime endTime = LocalTime.now();
+        String costTime = Duration.between(startTime, endTime).getSeconds() + "s";
+
+        logger.info("download file success: name:{},cost time:{}", fileName, costTime);
         return true;
     }
 
@@ -142,7 +152,8 @@ public class HttpClient {
         request.setHeader("Accept-Encoding", "gzip");
         request.setHeader("Referer", urlStr);
         request.setHeader("X-Forwarded-For", randomIp());
-        request.setHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/84.0.4147" +
+        request.setHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
+            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/84.0.4147" +
             ".89 Safari/537.36");
         return request;
     }
@@ -151,7 +162,8 @@ public class HttpClient {
         HttpURLConnection con = null;
         URL url;
         try {
-            Proxy proxy = new Proxy(Proxy.Type.HTTP, new InetSocketAddress(Config.HTTP_PROXY_HOSTNAME, Config.HTTP_PROXY_PORT));
+            Proxy proxy = new Proxy(Proxy.Type.HTTP,
+                new InetSocketAddress(Config.HTTP_PROXY_HOSTNAME, Config.HTTP_PROXY_PORT));
             url = new URL(urlStr);
             con = (HttpURLConnection) url.openConnection(proxy);
             System.out.println(url.getHost());
@@ -167,7 +179,8 @@ public class HttpClient {
             System.out.println(ip);
             con.setRequestProperty("X-Forwarded-For", ip);
             // 模拟浏览器访问
-            con.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/84.0.4147" +
+            con.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
+                "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/84.0.4147" +
                 ".89 Safari/537.36");
             con.setConnectTimeout(Config.CONNECT_TIMEOUT);
             con.setReadTimeout(Config.READ_TIMEOUT);
